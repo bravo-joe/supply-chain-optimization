@@ -1,0 +1,10 @@
+# Configuration file for "creating_synthetic_data.py"
+server:
+  host: "[host_name]"
+  port: [port_num]
+database:
+  user: "[user_name]]"
+  password: "[private_pw]"
+  name: "[db_name]"
+  table: "[tbl_name]"
+  tbl_schema: "/some/directory/to/schema/schema.sql"
