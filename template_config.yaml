@@ -1,0 +1,10 @@
+# Template configuration file to connect with and alter RDBMS
+server:
+  host: "[host_name]"
+  port: [port_num]
+database:
+  user: "[user_name]"
+  password: "[private_pw]"
+  name: "[db_name]"
+  table: "[tbl_name]"
+  tbl_schema: "/some/directory/to/schema.sql"
