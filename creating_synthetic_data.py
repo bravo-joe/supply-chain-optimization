@@ -6,9 +6,10 @@ import yaml # Read config files
 import time
 import pandas as pd # Dataframes
 import numpy as np # Calculations and processing
+from sqlalchemy import create_engine
 
 # Will bundle the different cells in my notebook into one function
-def my_function(
+def create_transp_cost_df(
         num_customers: int,
         min_cost: int = 1,
         max_cost: int = 15,
@@ -23,10 +24,6 @@ def my_function(
         The minimum transportation cost in dollars (default is 1)
     max_cost : int
         The maximum transportation cost for a customer in dollars (default is 15)
-    max_demand : int
-        The maximum a customer can demand in units (default is 301)        
-    min_demand : int
-        The minimum
 
     Returns
     -------
@@ -40,7 +37,7 @@ def my_function(
         numbered_customers.append(f"{prefix}{i}")
 
     # Make factories list 3/5 of the customers list
-    num_factories = int((3/5)*len(num_customers))
+    num_factories = int((3/5)*num_customers)
 
     # Create a number of fictitious factories
     prefix_2 = "factory_"
@@ -66,12 +63,65 @@ def my_function(
 
     # Array to chose the possible demand by customer
     possible_demand = np.arange(50, 301, 10)
-    possible_demand = possible_nums.tolist()
+    possible_demand = possible_demand.tolist()
     # Select a random number from this array
     demand = []
     for i in range(1, num_customers+1): # Generates demand for all 75 factories
         #demand.append(np.random.choice(possible_nums))
-        demand.append(random.choice(possible_nums))
-        print(demand)    
+        demand.append(random.choice(possible_demand))
+    
+    # List of manufacturing capacity
+    list_manufac_cap = [
+        125,
+        250,
+        375,
+        500,
+        625,
+        750
+    ]
+    
+    # Create a column to represent production capacity
+    prod_capacity = []
+    for j in range(1, num_factories+1): # Generates demand for all 75 factories
+        prod_capacity.append(random.choice(list_manufac_cap))
+
+    # Need a None/NaN for the intersection of production capacity and demand
+    prod_capacity.append(None)
+
+    # Add the demand row created to the matrix
+    random_matrix_df.loc['demand'] = demand
+
+    # Add a the production capacity as a new column with values from a list
+    random_matrix_df['production_capacity'] = prod_capacity
+
+    return random_matrix_df
+
+# Initiate the function to create a matrix
+transportation_costs_matrix = create_transp_cost_df(125) # 125 customers
+
+# Connect to database and push table to it
+# Read the configuration file
+with open("config.yaml", "r") as file:
+    config = yaml.safe_load(file)
+
+dbname=config["database"]["name"]
+user=config["server"]["user"]
+password=config["server"]["password"]
+host=config["server"]["host"]
+port=config["server"]["port"]
+
+# Inserts PostgreSQL credentials and database details for a connection
+db_connection_str = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}"
+# Create the engine
+engine = create_engine(db_connection_str)
+start_time = time.time() # get start time before insert
+try:
+    transportation_costs_matrix.to_sql(config["database"]["table"], engine, index=True, if_exists='replace')
+    print("DataFrame successfully moved to PostgreSQL!")
+except Exception as e:
+    print(f"Error moving the DataFrame to PostgreSQL database: {e}")
+end_time = time.time() # get end time after insert
+total_time = end_time - start_time # calculate the time
+print(f"Insert time: {total_time:.3f} seconds") # print time
 
 # End of "creating_synthetic_data.py"
