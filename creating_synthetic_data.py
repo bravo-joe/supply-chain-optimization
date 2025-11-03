@@ -93,6 +93,7 @@ def create_transp_cost_df(
 
     # Add a the production capacity as a new column with values from a list
     random_matrix_df['production_capacity'] = prod_capacity
+    random_matrix_df['production_capacity'] = random_matrix_df['production_capacity'].astype('Int64')
 
     return random_matrix_df
 
