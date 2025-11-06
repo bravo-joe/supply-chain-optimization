@@ -3,7 +3,7 @@ import time
 import pandas as pd
 from sqlalchemy import create_engine
 
-def read_tbl(config_dir = "config.yaml"):
+def query_tbl(config_dir = "config.yaml"):
     # Read the configuration file
     with open(config_dir, "r") as file:
         config = yaml.safe_load(file)
