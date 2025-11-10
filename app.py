@@ -50,35 +50,45 @@ page1 = ui.navset_card_underline(
     title = 'EDA',
 )
 
-app_ui = ui.layout_columns(
-        # 1. Basic value box
-        ui.value_box(
-            "Average Demand (units)",
-            ui.output_ui("mean_demand"),
-            showcase = ICONS['chart'],
-            theme="primary"
-        ),
-        # 2. Average production capacity per plant
-        ui.value_box(
-            "Average production capacity (units)",
-            ui.output_ui("mean_production_capacity"),
-            showcase = ICONS['plant'],
-            theme = 'primary'
-        ),
-        fill=False
-    ), ui.page_navbar(
-        ui.nav_spacer(), # Pushing the navbar items to the right
-        ui.nav_panel(
-            "Page 1",
-            page1
-        ),
-        ui.nav_panel(
-            "Page 2",
-            "This is a placeholder and second 'page'."
-        ),
-        # Main dashboard title
-        title="Dashboard prototype",
-    )
+app_ui = ui.page_navbar(
+    # 1. Basic value box
+    # ui.value_box(
+    #     "Average Demand (units)",
+    #     ui.output_ui("mean_demand"),
+    #     showcase = ICONS['chart'],
+    #     theme="primary"
+    # ),
+    ui.nav_spacer(), # Pushing the navbar items to the right
+    ui.nav_panel(
+        "Page 1",
+        page1
+    ),
+    ui.nav_panel(
+        "Page 2",
+        "This is a placeholder and second 'page'."
+    ),
+    # Main dashboard title
+    title="Dashboard prototype",
+)
+
+# ui.layout_columns(
+#         # 1. Basic value box
+#         ui.value_box(
+#             "Average Demand (units)",
+#             ui.output_ui("mean_demand"),
+#             showcase = ICONS['chart'],
+#             theme="primary"
+#         ),
+#         # 2. Average production capacity per plant
+#         ui.value_box(
+#             "Average production capacity (units)",
+#             ui.output_ui("mean_production_capacity"),
+#             showcase = ICONS['plant'],
+#             theme = 'primary'
+#         ),
+#         fill=False
+#     ), ui.page_navbar(
+
 
 # Define the server function
 def server(
