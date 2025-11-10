@@ -32,9 +32,10 @@ demand = demand.to_frame(name = 'demand')
 demand = demand.dropna()
 # Some rearranging
 demand = demand.iloc[1:, :]
-# And finally saving the CSV file locally to pull in next task
-demand.to_csv('./data/demand.csv', index=False)
-print(demand)
+# Resetting index
+demand = demand.reset_index()
+# Drop unnecessary column that was the index
+demand = demand.drop(labels="index", axis=1)
 
 # The last dataframe is the production capacity for the various factories
 # Pull the last column which is the production capacity
@@ -45,7 +46,17 @@ prod_cap = prod_cap.dropna()
 prod_cap = prod_cap.astype(int)
 # Convert from series to dataframe
 prod_cap = prod_cap.to_frame(name = 'production_capacity')
-prod_cap.to_csv('./data/production_capacity.csv', index=False)
-print(prod_cap)
+
+# Combine the two dataframes
+eda_df = pd.concat(
+    [
+        prod_cap,
+        demand
+    ],
+    axis=1
+)
+
+eda_df.to_csv('./data/eda_df.csv', index=False)
+print(eda_df)
 
 # End of "eda.py"
