@@ -32,21 +32,48 @@ ICONS = {
 # The contents of the first 'page' is a navset with one panel
 page1 = ui.navset_card_underline(
     ui.nav_panel(
+        "Overview",
+        ui.h3("Key Metrics"),
+        ui.layout_column_wrap(  # Use layout_column_wrap for multiple value boxes
+            ui.value_box(
+                title="Total Sales",
+                value="$1,234,567",
+                # showcase=ui.bs_icon("cash-coin"),
+                showcase=ICONS['plant'],
+                theme="primary"
+            ),
+            ui.value_box(
+                title="Customers",
+                value="12,345",
+                #showcase=ui.bs_icon("people"),
+                showcase=ICONS['chart'],
+                theme="success"
+            ),
+            ui.value_box(
+                title="Average Demand (units)",
+                value=ui.output_ui("mean_demand"),
+                # showcase=ui.bs_icon("box-seam"),
+                showcase=ICONS['truck'],
+                theme="info"
+            ),
+        )
+    ),
+    ui.nav_panel(
         "Demand and Production Capacity",
-        ui.output_plot("hist")
+        ui.output_plot("hist"),
+        ui.input_select(
+            id = "var",
+            label = "Select variable",
+            choices = [
+                "demand",
+                "production_capacity"
+            ]
+        )
     ),
     # ui.nav_panel(
     #     "Customer Sample",
     #     ui.output_data_frame("sample_bxplt")
     # ),
-    footer = ui.input_select(
-        id = "var",
-        label = "Select variable",
-        choices = [
-            "demand",
-            "production_capacity"
-        ]
-    ),
     title = 'EDA',
 )
 
