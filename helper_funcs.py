@@ -1,5 +1,7 @@
 import time
 import yaml # Read config files
+import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine
 
 def query_tbl(config_dir = "config.yaml"):
@@ -35,73 +37,145 @@ def query_tbl(config_dir = "config.yaml"):
     print(f"Read time: {total_time:.3f} seconds") # print time
     return(df_table)
 
-# Transportation costs
-def transportation_costs(
-    df,
-    yield_df=True
-):
-    """Pull the data in the middle of the queried table that is just transportation costs."""
-    if yield_df:
-        return df.iloc[:-1, 1:-1]
-    else:
-        return df.iloc[:-1, 1:-1].to_numpy()
+# Transportation costs as numpy array
+def transportation_costs_arr(df: pd.DataFrame) -> np.ndarray:
+    """Turns transportation costs from queried table to a numpy array."""
+    return df.iloc[:-1, 1:-1].to_numpy()
 
-# Pull demand
-def extract_demand(
-    df,
-    yield_df=True
-):
-    """
-    Pull the demand row, the final row in the queried table.
-    Can output either a Pandas series or NumPy array.
+# Transportation costs as pandas dataframe
+def transportation_costs_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Pull transportation costs from queried table to a dataframe."""
+    return df.iloc[:-1, 1:-1]      
 
-    Args:
-        df (pandas.dataframe): Table queried from Postgres with transportation costs.
-        to_dataframe (bool): Determines whether function outputs a pandas dataframe or numpy array. Default is True.
-
-    Returns:
-        Customer demand in one vector (pandas.dataframe or numpy array).
-    """
-    if yield_df:
-        # Series of data processing logic that outputs a dataframe
-        demand = df.iloc[-1,:]
-        demand = demand.to_frame(name = 'demand')
-        demand = demand.dropna()
-        demand = demand.iloc[1:, :]
-        demand = demand.reset_index()
-        demand = demand.drop(labels="index", axis=1)
-    else:
-        # Convert Pandas dataframe to a NumPy series after data cleaning,
-        demand = df.iloc[-1, 1:]
-        demand = demand.reset_index(drop=True)
-        demand = demand.dropna()
-        demand = demand.astype(int)
-        demand = demand.to_numpy()
+# Customer demand as numpy array
+def extract_demand_arr(df: pd.DataFrame) -> np.ndarray:
+    """Pull customer demand, clean data, and output 1d numpy array."""
+    demand = df.iloc[-1, 1:]
+    demand = demand.reset_index(drop=True)
+    demand = demand.dropna()
+    demand = demand.astype(int)
+    demand = demand.to_numpy()
     return demand
 
-# Get the supply
-def extract_supply(
-    df,
-    yield_df=True
-):
-    """
-    Extract the production capacity for each plant which is the last column.
-    Performing some data cleaning before deciding on array or dataframe.
+# Customer demand as pandas dataframe
+def extract_demand_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Pull customer demand, clean data, and output 1d pandas dataframe."""
+    demand = df.iloc[-1,:]
+    demand = demand.to_frame(name = 'demand')
+    demand = demand.dropna()
+    demand = demand.iloc[1:, :]
+    demand = demand.reset_index()
+    demand = demand.drop(labels="index", axis=1)
+    return demand
 
-    Args:
-        df (pandas dataframe): Table queried from Postgres with transportation costs.
-        to_dataframe (bool): Determines whether function outputs a pandas dataframe or numpy array. Default is True.
-
-    Returns:
-        Production capacity one vector (pandas dataframe or numpy array).
-    """
+def clean_supply_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Data cleaning helper function for production capacity data."""
     prod_cap = df.iloc[:,-1]
     prod_cap = prod_cap.dropna()
     prod_cap = prod_cap.astype(int)
-    if yield_df:
-        # Convert from series to dataframe
-        prod_cap = prod_cap.to_frame(name = 'production_capacity')
-    else:
-        # Convert to numpy array
-        prod_cap.to_numpy()
     return prod_cap
+
+def extract_supply_arr(df: pd.DataFrame) -> np.ndarray:
+    """Extract the production capacity from each plant into a numpy array."""
+    prod_cap = clean_supply_data(df)
+    return prod_cap.to_numpy()
+
+def extract_supply_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert supply data from pandas series to dataframe."""
+    prod_cap = clean_supply_data(df)
+    return prod_cap.to_frame(name='production_capacity')
+
+def find_solution(
+        demand: np.array,
+        supply: np.array,
+        transportation_costs: np.array,
+        alpha: int,
+        beta: int,
+        m: int,
+        n: int,
+        pheromone: np.ndarray
+) -> np.array:
+    """Minimizes the transportation costs using the ant colony optimization algorithm.
+
+    Args:
+        demand (numpy.ndarray): 1D array of the customer demand.
+        supply (numpy.ndarray): 1D array of production capacities from various plants/factories.
+        transportation_costs (numpy.ndarray): Multi-dimentional table of transportation costs.
+        alpha (int): Hyperparameter. Pheromone influence.
+        beta (int): Hyperparameter. Heuristic influence.
+        m (int): Number of plants/factories/rows from the transportation costs table.
+        n (int): Number of customers/columns from the transportation costs table.
+        pheromone (numpy.ndarray): Initial, multi-dimensional pheromone (m x n) matrix.
+
+    Returns:
+        numpy.ndarray: Feasible transportation plan matrix.
+    
+    """
+    remaining_supply = supply.copy()
+    remaining_demand = demand.copy()
+    # Begin with a zero matrix
+    x = np.zeros((m, n))
+    # Inverse of cost
+    eta = 1/(transportation_costs + 1e-6)
+    while remaining_demand.sum() > 0:
+        # For each customer
+        for j in range(n):
+            if remaining_demand[j] <= 0:
+                continue
+            # Calculate probability for each supplier i to satisfy demand j
+            numerators = (pheromone[:, j]**alpha) * (eta[:, j]**beta)
+            # Zero out suppliers with no supply left
+            numerators = np.where(
+                remaining_supply > 0,
+                numerators,
+                0
+            )
+            # When no feasible supplier
+            if numerators.sum() == 0:
+                continue
+            prob = numerators/numerators.sum()
+            i = np.random.choice(
+                range(m),
+                p = prob
+            )
+            # Assign as much as possible
+            amount = min(
+                remaining_supply[i],
+                remaining_demand[j]
+            )
+            x[i][j] += amount
+            remaining_supply[i] -= amount
+            remaining_demand[j] -= amount
+            if remaining_supply[i] == 0:
+                pass
+    return x
+
+def solution_cost(
+        solution: np.ndarray,
+        transportation_costs: np.ndarray
+) -> np.float64:
+    """Perform matrix operations to get the cost."""
+    return np.sum(solution*transportation_costs)
+
+def update_pheromones(
+        optimal_solution: np.ndarray,
+        pheromone: np.ndarray,
+        rho: float,
+        Q: int
+) -> np.ndarray:
+    """Using some hyperparameters and calculations to update pheromones.
+    
+    Args:
+        optimal_solution (numpy.ndarray): Best solution after every iteration.
+        pheromone (numpy.ndarray): Reinforce good paths while poorer ones fade away.
+        rho (float): Evaporation rate.
+        Q (int): Pheromone deposit scaling.
+
+    Returns:
+        numpy.ndarray: Update pheromone trails for ants to follow.
+    
+    """
+    pheronome = (1 - rho) * pheromone
+    # Deposit on all edges
+    pheromone += Q/(solution_cost(optimal_solution) + 1e-6)
+    return pheromone
