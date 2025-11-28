@@ -158,6 +158,7 @@ def solution_cost(
     return np.sum(solution*transportation_costs)
 
 def update_pheromones(
+        transportation_costs: np.ndarray,
         optimal_solution: np.ndarray,
         pheromone: np.ndarray,
         rho: float,
@@ -175,7 +176,8 @@ def update_pheromones(
         numpy.ndarray: Update pheromone trails for ants to follow.
     
     """
-    pheronome = (1 - rho) * pheromone
+    # global pheromone
+    pheromone = (1 - rho) * pheromone
     # Deposit on all edges
-    pheromone += Q/(solution_cost(optimal_solution) + 1e-6)
+    pheromone += Q/(solution_cost(optimal_solution, transportation_costs) + 1e-6)
     return pheromone
