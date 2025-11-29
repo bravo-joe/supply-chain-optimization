@@ -85,99 +85,128 @@ def extract_supply_df(df: pd.DataFrame) -> pd.DataFrame:
     prod_cap = clean_supply_data(df)
     return prod_cap.to_frame(name='production_capacity')
 
-def find_solution(
-        demand: np.array,
-        supply: np.array,
-        transportation_costs: np.array,
-        alpha: int,
-        beta: int,
-        m: int,
-        n: int,
-        pheromone: np.ndarray
-) -> np.array:
-    """Minimizes the transportation costs using the ant colony optimization algorithm.
+# OOP
+class TransportationProblem:
+    """Stores supply, customer demand, and cost arrays and evaluates the solution cost."""
 
-    Args:
-        demand (numpy.ndarray): 1D array of the customer demand.
-        supply (numpy.ndarray): 1D array of production capacities from various plants/factories.
-        transportation_costs (numpy.ndarray): Multi-dimentional table of transportation costs.
-        alpha (int): Hyperparameter. Pheromone influence.
-        beta (int): Hyperparameter. Heuristic influence.
-        m (int): Number of plants/factories/rows from the transportation costs table.
-        n (int): Number of customers/columns from the transportation costs table.
-        pheromone (numpy.ndarray): Initial, multi-dimensional pheromone (m x n) matrix.
+    def __init__(
+        self,
+        prod_cap,
+        demand,
+        trans_costs
+    ):
+        self.prod_cap = prod_cap
+        self.demand = demand
+        self.trans_costs = trans_costs
 
-    Returns:
-        numpy.ndarray: Feasible transportation plan matrix.
+        self.m = len(prod_cap) # Number of suppliers/factories
+        self.n = len(demand) # Number of destinations/customers
+
+    def cost(self, x):
+        """Return transportation costs."""
+        return np.sum(x * self.trans_costs)
     
-    """
-    remaining_supply = supply.copy()
-    remaining_demand = demand.copy()
-    # Begin with a zero matrix
-    x = np.zeros((m, n))
-    # Inverse of cost
-    eta = 1/(transportation_costs + 1e-6)
-    while remaining_demand.sum() > 0:
-        # For each customer
-        for j in range(n):
-            if remaining_demand[j] <= 0:
-                continue
-            # Calculate probability for each supplier i to satisfy demand j
-            numerators = (pheromone[:, j]**alpha) * (eta[:, j]**beta)
-            # Zero out suppliers with no supply left
-            numerators = np.where(
+class AntColony:
+    """Implement Ant Colony Optimization on the transportation costs problem."""
+
+    def __init__(
+        self,
+        problem: TransportationProblem,
+        n_ants = 30,
+        n_iterations = 100,
+        alpha = 1,
+        beta = 2,
+        rho = 0.1,
+        Q = 1,
+        seed = 123
+    ):
+        self.problem = problem
+        self.n_ants = n_ants
+        self.n_iterations = n_iterations
+        self.alpha = alpha
+        self.beta = beta
+        self.rho = rho
+        self.Q = Q
+
+        np.random.seed(seed)
+
+        # Initialize pheromone matrix
+        self.pheromone = np.ones((problem.m, problem.n))
+
+        # Track best solution
+        self.optimal_solution = None
+        self.best_cost = float("inf")
+        self.cost_history = []
+
+    # Construct ant solution
+    def create_solution(self):
+        """Find a feasible transportation plan using probabilistic selection."""
+        # Matrix dimensions
+        m, n = self.problem.m, self.problem.n
+        remaining_supply = self.problem.prod_cap.copy()
+        remaining_demand = self.problem.demand.copy()
+        # Begin with a zero matrix
+        solution = np.zeros((m, n))
+        # Heuristic: Inverse of cost
+        eta = 1 / (self.problem.trans_costs + 1e-6)
+        while remaining_demand.sum() > 0:
+            # For each customer
+            for j in range(n):
+                if remaining_demand[j] <= 0:
+                    continue
+                # Calculate probability for each supplier i to satisfy demand j
+                numerators = (self.pheromone[:, j]**self.alpha) * (eta[:, j]**self.beta)
+                # Zero out suppliers with no supply left
+                numerators = np.where(
                 remaining_supply > 0,
                 numerators,
                 0
-            )
-            # When no feasible supplier
-            if numerators.sum() == 0:
-                continue
-            prob = numerators/numerators.sum()
-            i = np.random.choice(
-                range(m),
-                p = prob
-            )
-            # Assign as much as possible
-            amount = min(
-                remaining_supply[i],
-                remaining_demand[j]
-            )
-            x[i][j] += amount
-            remaining_supply[i] -= amount
-            remaining_demand[j] -= amount
-            if remaining_supply[i] == 0:
-                pass
-    return x
-
-def solution_cost(
-        solution: np.ndarray,
-        transportation_costs: np.ndarray
-) -> np.float64:
-    """Perform matrix operations to get the cost."""
-    return np.sum(solution*transportation_costs)
-
-def update_pheromones(
-        transportation_costs: np.ndarray,
-        optimal_solution: np.ndarray,
-        pheromone: np.ndarray,
-        rho: float,
-        Q: int
-) -> np.ndarray:
-    """Using some hyperparameters and calculations to update pheromones.
+                )
+                # When no feasible supplier
+                if numerators.sum() == 0:
+                    continue
+                prob = numerators/numerators.sum()
+                i = np.random.choice(
+                    range(m),
+                    p = prob
+                )
+                # Assign as much as possible
+                amount = min(remaining_supply[i], remaining_demand[j])
+                solution[i][j] += amount
+                remaining_supply[i] -= amount
+                remaining_demand[j] -= amount
+        return solution
     
-    Args:
-        optimal_solution (numpy.ndarray): Best solution after every iteration.
-        pheromone (numpy.ndarray): Reinforce good paths while poorer ones fade away.
-        rho (float): Evaporation rate.
-        Q (int): Pheromone deposit scaling.
+    # Update Pheromones
+    def update_pheromones(
+            self,
+            solution
+    ):
+        """Evaporate and deposit pheromone based on solution quality."""
+        cost = self.problem.cost(solution)
+        # Evaporation
+        self.pheromone = (1 - self.rho) * self.pheromone
+        # Deposit
+        self.pheromone += self.Q/(cost + 1e-6)
 
-    Returns:
-        numpy.ndarray: Update pheromone trails for ants to follow.
+    # Run optimization
+    def run_optimization(self):
+        for iter in range(self.n_iterations):
+            for _ in range(self.n_ants):
+                solution = self.create_solution()
+                cost = self.problem.cost(solution)
+                if cost < self.best_cost:
+                    self.best_cost = cost
+                    self.optimal_solution = solution
+            self.update_pheromones(self.optimal_solution)
+            self.cost_history.append(self.best_cost)
+            print(f"Iteration {iter + 1}, best cost =  {self.best_cost}")
+        return self.optimal_solution, self.best_cost
     
-    """
-    # global pheromone
-    pheromone = (1 - rho) * pheromone
-    # Deposit on all edges
-    pheromone += Q/(solution_cost(optimal_solution, transportation_costs) + 1e-6)
-    return pheromone
+    def get_results(self):
+        """Return the best solution and cost."""
+        return {
+            'solution': self.optimal_solution,
+            'cost': self.best_cost,
+            'cost_history': self.cost_history
+        }
