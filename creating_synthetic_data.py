@@ -2,17 +2,19 @@
 # Import necessary libraries and packages
 import random # For random number generator
 import psycopg2 # To connect with PostgreSQL
-import yaml # Read config files
+# Probably won't need import statement that's been commented out below
+# import yaml # Read config files 
 import time
 import pandas as pd # Dataframes
 import numpy as np # Calculations and processing
+from collections.abc import Callable
 from sqlalchemy import create_engine
 
 # Will bundle the different cells in my notebook into one function
-def create_transp_cost_df(
+def create_transportation_costs(
         num_customers: int,
-        min_cost: int = 1,
-        max_cost: int = 15,
+        min_cost: int,
+        max_cost: int,
     ) -> pd.DataFrame:
     """Create a table that contains transportation costs, demand, and manufacturing capacity.
 
@@ -27,7 +29,7 @@ def create_transp_cost_df(
 
     Returns
     -------
-    pd.DataFrame
+    DataFrame
         A matrix made of pseudo-random transportation costs, demand, and production capabilities
     """
     # Create customers
@@ -70,7 +72,7 @@ def create_transp_cost_df(
         #demand.append(np.random.choice(possible_nums))
         demand.append(random.choice(possible_demand))
     
-    # List of manufacturing capacity
+    # List of manufacturing capacities
     list_manufac_cap = [
         125,
         250,
@@ -97,32 +99,56 @@ def create_transp_cost_df(
 
     return random_matrix_df
 
-# Initiate the function to create a matrix
-transportation_costs_matrix = create_transp_cost_df(125) # 125 customers
+def migrate_trans_costs_tbl(
+        func: Callable,
+        num_customers: int,
+        min_cost: int,
+        max_cost: int,
+        dbname: str,
+        tbl: str,
+        user: str,
+        password: str,
+        host: str,
+        port: int
+):
+    """Creates transportation costs table then migrates to postgresql database.
 
-# Connect to database and push table to it
-# Read the configuration file
-with open("config.yaml", "r") as file:
-    config = yaml.safe_load(file)
+    Args:
+        func (function): Creates transportation cost table.
+        num_customers (int): The number of customers the company serves.
+        min_cost (int): The minimum transportation cost in dollars.
+        max_cost (int): The maximum transportation cost for a customer in dollars.
+        config (str): Configuration file location.
+        dbname (str): Name of database.
+        tbl (str): Table within database
+        user (str): Username.
+        password (str): Secret to access Postgresql database.
+        host (str): Hostname.
+        port (int): Port number of the database.
+    
+    """
+    
+    # Initiate the function to create a matrix
+    transportation_costs_matrix = func(
+        num_customers,
+        min_cost,
+        max_cost
+    )
 
-dbname=config["database"]["name"]
-user=config["server"]["user"]
-password=config["server"]["password"]
-host=config["server"]["host"]
-port=config["server"]["port"]
+    # Inserts PostgreSQL credentials and database details for a connection
+    db_connection_str = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}"
 
-# Inserts PostgreSQL credentials and database details for a connection
-db_connection_str = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}"
-# Create the engine
-engine = create_engine(db_connection_str)
-start_time = time.time() # get start time before insert
-try:
-    transportation_costs_matrix.to_sql(config["database"]["table"], engine, index=True, if_exists='replace')
-    print("DataFrame successfully moved to PostgreSQL!")
-except Exception as e:
-    print(f"Error moving the DataFrame to PostgreSQL database: {e}")
-end_time = time.time() # get end time after insert
-total_time = end_time - start_time # calculate the time
-print(f"Insert time: {total_time:.3f} seconds") # print time
+    # Create the engine, connect to database, and push table to it
+    engine = create_engine(db_connection_str)
+    start_time = time.time() # get start time before insert
+    try:
+        # transportation_costs_matrix.to_sql(config["database"]["table"], engine, index=True, if_exists='replace')
+        transportation_costs_matrix.to_sql(tbl, engine, index=True, if_exists='replace')
+        print("DataFrame successfully moved to PostgreSQL!")
+    except Exception as e:
+        print(f"Error moving the DataFrame to PostgreSQL database: {e}")
+    end_time = time.time() # get end time after insert
+    total_time = end_time - start_time # calculate the time
+    print(f"Insert time: {total_time:.3f} seconds") # print time
 
 # End of "creating_synthetic_data.py"

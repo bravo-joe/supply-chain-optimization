@@ -5,15 +5,45 @@
     supply, and demand, implement the ACO algorithm, and produce a visual dashboard.
 """
 # Import necessary libraries and modules
+import yaml # Read config files 
 from pathlib import Path
 from datetime import datetime
+import os
 
 from airflow.operators.empty import EmptyOperator
 from airflow.decorators import dag, task
+from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+
+# Custom functions
+# from helper_funcs.latin import some_latin
+from helper_funcs.creating_synthetic_data import (
+    create_transportation_costs,
+    migrate_trans_costs_tbl
+)
 
 # Store DAG ID in global variable
 DAG_ID = Path(__file__).stem
+# CONFIG_LOC = Variable.get("config_loc")
+# CONFIG_LOC = "config.yaml"
+config_path = os.path.join(os.path.dirname(__file__), "helper_funcs/config.yaml")
+# CONFIG_LOC = "/home/joe/Documents/supply-chain-optimization/config.yaml"
+# Read the configuration file
+# with open("config.yaml", "r") as file:
+with open(config_path, "r") as file:
+    CONFIG = yaml.safe_load(file)
+
+# Setting some variables
+DBNAME = CONFIG["database"]["name"]
+TABLE = CONFIG["database"]["table"]
+USER = CONFIG["server"]["user"]
+PASSWORD = CONFIG["server"]["password"]
+HOST = CONFIG["server"]["host"]
+PORT = CONFIG["server"]["port"]
+N_CUSTOMERS = CONFIG["company_data"]["num_customers"]
+MIN_COST = CONFIG["company_data"]["min_cost"]
+MAX_COST = CONFIG["company_data"]["max_cost"]
+CREATE_DATA = CONFIG["synthetic_data"]["necessity"]
 
 # Define default arguments
 default_args = {
@@ -41,11 +71,9 @@ default_args = {
     5. 
     """,
     tags = [
-        'operational research',
-        'linear optimization',
-        'supply chain',
-        'ant colony optimization',
-        'portfolio project'
+        'supply chain optimization',
+        'portfolio project',
+        'manual_trigger'
     ]
 )
 
@@ -53,16 +81,36 @@ def main_dag():
     # First task
     @task
     def start_dag():
-        EmptyOperator(task_id="start_the_dag")
+        EmptyOperator(task_id="start_dag")
     @task
-    def intermed_dag():
+    def create_data():
+        if CREATE_DATA:
+            migrate_trans_costs_tbl(
+                func=create_transportation_costs,
+                num_customers=N_CUSTOMERS,
+                min_cost=MIN_COST,
+                max_cost=MAX_COST,
+                dbname=DBNAME,
+                tbl=TABLE,
+                user=USER,
+                password=PASSWORD,
+                host=HOST,
+                port=PORT
+            )
+        else:
+            pass
+    @task
+    def intermed_task():
         print("This is an intermediate task ...")
+    # @task
+    # def print_latin():
+    #     return some_latin()
     @task
-    def end_dag():
-        EmptyOperator(task_id="end_of_dag")
+    def final_task():
+        EmptyOperator(task_id="final_task")
 
     # Set task dependencies
-    start_dag() >> intermed_dag() >> end_dag()
+    start_dag() >> [create_data(), intermed_task()] >> final_task()
 
 main_dag()
 
