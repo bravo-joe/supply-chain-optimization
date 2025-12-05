@@ -1,49 +1,69 @@
 # Beginning of "eda.py"
-# Import necessary libraries and modules
-import yaml # Read config files
-import os
 import pandas as pd
-pd.set_option('display.max_rows', 12)
-pd.set_option('display.max_columns', 10)
+# Import custom helper functions
 from helper_funcs import (
     query_tbl
-    , extract_demand
-    , extract_supply
-    , transportation_costs
+    , extract_demand_df
+    , extract_supply_df
+    , transportation_costs_df
+    , migrate_to_rdbms
 )
 
-# Import table from PostgreSQL
-df = query_tbl()
-# Gathering just transportation costs
-trans_costs = transportation_costs(df)
-# Gathering some basic info
-num_of_plants = len(trans_costs.index)
-num_of_customers = len(trans_costs.columns)
-# Want a random subset of 15 customers
-n_cols = 15
-sample15 = trans_costs.sample(
-    n = n_cols,
-    axis = 1
-)
-sample15.to_csv('./data/sample15.csv', index=False)
+# OOP
+class EDA:
+    """Take a random sample and supply/demand tables then push to database."""
 
-# Next is the dataframe for customer demand
-# Extract the demand row into its own Pandas Series
-demand = extract_demand(df)
+    def __init__(
+        self,
+        user,
+        pw,
+        host,
+        port,
+        dbname, 
+    ):
+        self.user = user
+        self.pw = pw
+        self.host = host
+        self.port = port
+        self.dbname = dbname
 
-# Supply
-prod_cap = extract_supply(df)
+    def create_random_sample(self, df, n):
+        """Take a simple sample for visualizations."""
+        trans_costs = transportation_costs_df(df)
+        num_of_plants = len(trans_costs.index)
+        num_of_customers = len(trans_costs.columns)
+        basic_sample = trans_costs.sample(
+            n = n,
+            axis = 1
+        )
+        migrate_to_rdbms(
+            user = self.user,
+            pw = self.pw,
+            host = self.host,
+            port = self.port,
+            dbname = self.dbname,
+            dframe = basic_sample,
+            tbl_name = "random_sample"
+        )
 
-# Combine the two dataframes
-eda_df = pd.concat(
-    [
-        prod_cap,
-        demand
-    ],
-    axis=1
-)
-
-eda_df.to_csv('./data/eda_df.csv', index=False)
-print(eda_df)
+    def join_supply_and_demand(self, df):
+        """Extract supply and demand then push back to database."""
+        demand = extract_demand_df(df) # Demand
+        demand = demand.astype(int) # Convert to native Python int type
+        prod_cap = extract_supply_df(df) # Supply
+        prod_cap = prod_cap.astype(int)
+        supply_and_demand = pd.concat(
+            [prod_cap, demand],
+            axis=1
+        )
+        migrate_to_rdbms(
+            user = self.user,
+            pw = self.pw,
+            host = self.host,
+            port = self.port,
+            dbname = self.dbname,
+            dframe = supply_and_demand,
+            tbl_name = "supply_and_demand"
+        )
 
 # End of "eda.py"

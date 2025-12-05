@@ -85,6 +85,36 @@ def extract_supply_df(df: pd.DataFrame) -> pd.DataFrame:
     prod_cap = clean_supply_data(df)
     return prod_cap.to_frame(name='production_capacity')
 
+def migrate_to_rdbms(
+        user: str,
+        pw: str,
+        host: str,
+        port: int,
+        dbname:str,
+        dframe: pd.DataFrame,
+        tbl_name: str
+):
+    """Moves a dataframe to a new table in rdbms."""
+    import logging
+    # Establish some logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    # Connection to dbase
+    db_connection_str = f"postgresql+psycopg2://{user}:{pw}@{host}:{port}/{dbname}"
+    engine = create_engine(db_connection_str)
+    start_time = time.time()
+    try:
+        dframe.to_sql(tbl_name, engine, index=False, if_exists='replace')
+        logger.info("DataFrame successfully moved to PostgreSQL!")
+        end_time = time.time()
+        total_time = end_time - start_time # Calculate the time
+        logger.info("Insert time: %.*f seconds", 2, total_time)
+    except Exception as e:
+        logger.error("Error moving the DataFrame to PostgreSQL database: %s", e)
+
 # OOP
 class TransportationProblem:
     """Stores supply, customer demand, and cost arrays and evaluates the solution cost."""
