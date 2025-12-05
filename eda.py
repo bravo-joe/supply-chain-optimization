@@ -1,9 +1,8 @@
 # Beginning of "eda.py"
 import pandas as pd
 # Import custom helper functions
-from helper_funcs import (
-    query_tbl
-    , extract_demand_df
+from .helper_funcs import (
+    extract_demand_df
     , extract_supply_df
     , transportation_costs_df
     , migrate_to_rdbms
