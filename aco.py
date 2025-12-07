@@ -2,13 +2,14 @@
 # Beginning of "aco.py"
 import yaml
 import numpy as np
+import pandas as pd
+import logging
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple
-from helper_funcs import (
-    query_tbl,
-    transportation_costs_arr,
-    extract_demand_arr,
-    extract_supply_arr,
+from helper_funcs.helper_funcs import (
+   extract_demand_arr,
+   extract_supply_arr,
+   transportation_costs_arr
 )
 
 # OOP
@@ -274,57 +275,57 @@ class AntColony: # Class 3
         """
         return [data.to_dict() for data in self.convergence_history]
 
-# Config
-with open('config.yaml', 'r') as f:
-    CONFIG = yaml.load(f, Loader=yaml.SafeLoader)
 # Driver logic
-df = query_tbl(
-    CONFIG["server"]["user"],
-    CONFIG["server"]["password"],
-    CONFIG["server"]["host"],
-    CONFIG["server"]["port"],
-    CONFIG["database"]["name"],
-    tbl_name = "transportation_problem",
-)
+def driver_func(dframe: pd.DataFrame) -> pd.DataFrame:
+    """
+    Driver function for implementation of ACO algorithm on transportation problem.
+    
+    Args:
+        dframe: Main transportation problem table
 
-demand = extract_demand_arr(df)
-prod_cap = extract_supply_arr(df)
-trans_costs = transportation_costs_arr(df)
+    Returns:
+        pd.DataFrame: Matrix containing convergence history for the run    
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+
+    demand = extract_demand_arr(dframe)
+    prod_cap = extract_supply_arr(dframe)
+    trans_costs = transportation_costs_arr(dframe)
+
+    # Step 1: Create TransportationProblem instance
+    problem = TransportationProblem(prod_cap, demand, trans_costs)
+
+    # Step 2: Run ACO algorithm
+    aco = AntColony(problem = problem)
+    optimal_solution, best_cost = aco.run_optimization()
+
+    # Step 3: Display results
+    results = aco.get_results()
+    logger.info(f"Optimal Cost: {results['best_cost']}")
+    logger.info(f"Optimal Solution: {results['solution']}")
+
+    # Step 4: Verify constraints
+    supply_check = np.allclose(optimal_solution.sum(axis=1), prod_cap)
+    demand_check = np.allclose(optimal_solution.sum(axis=0), demand)
+
+    # Constraint Verification
+    logger.info(f"Supply constraints satisfied: {supply_check}")
+    logger.info(f"Demand constraints satisfied: {demand_check}")
+
+    # Step 5: Access convergence data
+    convergence = aco.get_convergence_data()
+    logger.info("Optimization Complete!")
+
+    return pd.DataFrame(convergence)
 
     # Balance supply and demand
     # if total_supply > total_demand:
     #     demand[-1] += (total_supply - total_demand)
     # else:
     #     prod_cap[-1] += (total_demand - total_supply)
-
-    # Step 1: Create TransportationProblem instance
-problem = TransportationProblem(prod_cap, demand, trans_costs)
-    
-    # Step 2: Run ACO algorithm
-aco = AntColony(problem = problem)
-optimal_solution, best_cost = aco.run_optimization()
-    
-    # Step 3: Display results
-results = aco.get_results()
-print(f"\nOptimal Cost: {results['best_cost']}")
-print(f"Optimal Solution;\n{results['solution']}")
-    
-    # Step 4: Verify constraints
-supply_check = np.allclose(optimal_solution.sum(axis=1), prod_cap)
-demand_check = np.allclose(optimal_solution.sum(axis=0), demand)
-    
-print(f"\nConstraint Verification:")
-print(f"  Supply constraints satisfied: {supply_check}")
-print(f"  Demand constraints satisfied: {demand_check}")
-    
-    # Step 5: Access convergence data
-convergence = aco.get_convergence_data()
-print(f"\nFirst 5 iterations convergence:")
-for data in convergence[:5]:
-    print(data)
-
-print("\n" + "="*70)
-print("Optimization Complete!")
-print("="*70)
 
 # End of "aco.py"
