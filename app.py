@@ -1,13 +1,16 @@
 # Beginning of app.py"
-
 # Import necessary libraries and modules
+from math import ceil
+import yaml # Read config files 
 import faicons as fa
 import pandas as pd
 from shiny import App, render, ui
 from plotnine import (
     ggplot,
     aes,
-    geom_boxplot,
+    geom_line,
+    geom_point,
+    # geom_boxplot,
     scale_x_discrete,
     labs,
     coord_flip,
@@ -15,11 +18,38 @@ from plotnine import (
     theme,
     element_text
 )
+from helper_funcs import query_tbl, extract_demand_df, extract_supply_df
 
-# Locations of CSV files for the plots in dashboard
+# Config
+with open('config.yaml', 'r') as f:
+    CONFIG = yaml.load(f, Loader=yaml.SafeLoader)
+
+TRANSPORTATION_COSTS = query_tbl(
+    CONFIG["server"]["user"],
+    CONFIG["server"]["password"],
+    CONFIG["server"]["host"],
+    CONFIG["server"]["port"],
+    CONFIG["database"]["name"],
+    tbl_name="transportation_problem"
+)
+CONVERGENCE_CURVE = query_tbl(
+    CONFIG["server"]["user"],
+    CONFIG["server"]["password"],
+    CONFIG["server"]["host"],
+    CONFIG["server"]["port"],
+    CONFIG["database"]["name"],
+    tbl_name="convergence_history"
+)
+
 eda_df = pd.read_csv("./data/eda_df.csv")
-avg_demand = 183.92
-avg_cap = 446.67
+# Demand
+DEMAND = extract_demand_df(TRANSPORTATION_COSTS)
+avg_demand = DEMAND['demand'].mean()
+n_customers = len(DEMAND['demand'])
+# Supply
+SUPPLY = extract_supply_df(TRANSPORTATION_COSTS)
+avg_supply = SUPPLY['production_capacity'].mean()
+n_factories = len(SUPPLY['production_capacity'])
 
 # Icons for value box
 ICONS = {
@@ -36,24 +66,27 @@ page1 = ui.navset_card_underline(
         ui.h3("Key Metrics"),
         ui.layout_column_wrap(  # Use layout_column_wrap for multiple value boxes
             ui.value_box(
-                title="Total Sales",
-                value="$1,234,567",
-                # showcase=ui.bs_icon("cash-coin"),
+                title="Number of Factories",
+                value=ui.output_ui("number_plants"),
                 showcase=ICONS['plant'],
                 theme="primary"
             ),
             ui.value_box(
-                title="Customers",
-                value="12,345",
-                #showcase=ui.bs_icon("people"),
-                showcase=ICONS['chart'],
+                title="Average Production Capacity (units)",
+                value=ui.output_ui("production_capacity_mean"),
+                showcase=ICONS['clipboard'],
+                theme="info"
+            ),
+            ui.value_box(
+                title="Number of Customers",
+                value=ui.output_ui("number_customers"),
+                showcase=ICONS['truck'],
                 theme="success"
             ),
             ui.value_box(
                 title="Average Demand (units)",
-                value=ui.output_ui("mean_demand"),
-                # showcase=ui.bs_icon("box-seam"),
-                showcase=ICONS['truck'],
+                value=ui.output_ui("demand_mean"),
+                showcase=ICONS['chart'],
                 theme="info"
             ),
         )
@@ -70,21 +103,10 @@ page1 = ui.navset_card_underline(
             ]
         )
     ),
-    # ui.nav_panel(
-    #     "Customer Sample",
-    #     ui.output_data_frame("sample_bxplt")
-    # ),
-    title = 'EDA',
+    title = 'EDA'
 )
 
 app_ui = ui.page_navbar(
-    # 1. Basic value box
-    # ui.value_box(
-    #     "Average Demand (units)",
-    #     ui.output_ui("mean_demand"),
-    #     showcase = ICONS['chart'],
-    #     theme="primary"
-    # ),
     ui.nav_spacer(), # Pushing the navbar items to the right
     ui.nav_panel(
         "Page 1",
@@ -98,25 +120,6 @@ app_ui = ui.page_navbar(
     title="Dashboard prototype",
 )
 
-# ui.layout_columns(
-#         # 1. Basic value box
-#         ui.value_box(
-#             "Average Demand (units)",
-#             ui.output_ui("mean_demand"),
-#             showcase = ICONS['chart'],
-#             theme="primary"
-#         ),
-#         # 2. Average production capacity per plant
-#         ui.value_box(
-#             "Average production capacity (units)",
-#             ui.output_ui("mean_production_capacity"),
-#             showcase = ICONS['plant'],
-#             theme = 'primary'
-#         ),
-#         fill=False
-#     ), ui.page_navbar(
-
-
 # Define the server function
 def server(
         input,
@@ -124,32 +127,65 @@ def server(
         session
 ):
     @render.ui
-    def mean_demand():
-        return avg_demand
+    def demand_mean():
+        return ceil(avg_demand)
     
     @render.ui
-    def mean_production_capacity():
-        return avg_cap
+    def production_capacity_mean():
+        return ceil(avg_supply)
+    
+    @render.ui
+    def number_customers():
+        return n_customers
+    
+    @render.ui
+    def number_plants():
+        return n_factories
 
     @render.plot
     def hist():
-        # Plotting Logic
-        h = ggplot(
-            # input.var()
-            eda_df
-        )\
-        + aes(
-            x=input.var()
-        )\
-        + geom_histogram(
-            bins=10,
-            fill='#5cb5d3',
-            color='#040e05'
-        )\
-        + theme(
-            axis_text_x = element_text(rotation=90,hjust=1)
+        h = (
+            ggplot(eda_df, aes(x=input.var()))\
+            + geom_histogram(
+                bins=10,
+                fill='#5cb5d3',
+                color='#040e05'
+            )\
+            + theme(axis_text_x=element_text(rotation=90,hjust=1))
         )
         return h
+    
+    @render.plot
+    def convergence_curve():  # Create the convergence plot
+        df_long = pd.melt
+        df_long = pd.melt(
+            CONVERGENCE_CURVE,
+            id_vars=['iteration'],
+            value_vars=['best_cost', 'avg_cost'],
+            var_name='metric',
+            value_name='cost'
+        )
+        cc = (
+            ggplot(df_long, aes(x='iteration', y='cost', color='metric'))\
+            + geom_line(size=1.2)\
+            + geom_point(size=2, alpha=0.6)\
+            + labs(
+                title="ACO Cost Convergence Curve",
+                x='Iteration',
+                y='Cost',
+                color='metric'
+            )\
+            + theme_minimal()\
+            + theme(
+                plot_title=element_text(
+                    size=14,
+                    face='bold'
+                ),
+                axis_title=element_text(size=11),
+                figure_size=(10, 6)
+            )
+        )
+        return cc
     
 app = App(app_ui, server)
 
