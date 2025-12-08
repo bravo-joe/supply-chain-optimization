@@ -16,6 +16,7 @@ from plotnine import (
     coord_flip,
     geom_histogram,
     theme,
+    theme_minimal,
     element_text
 )
 from helper_funcs import query_tbl, extract_demand_df, extract_supply_df
@@ -30,7 +31,7 @@ TRANSPORTATION_COSTS = query_tbl(
     CONFIG["server"]["host"],
     CONFIG["server"]["port"],
     CONFIG["database"]["name"],
-    tbl_name="transportation_problem"
+    tbl_name="transportation_costs"
 )
 CONVERGENCE_CURVE = query_tbl(
     CONFIG["server"]["user"],
@@ -106,6 +107,14 @@ page1 = ui.navset_card_underline(
     title = 'EDA'
 )
 
+page2 = ui.navset_card_underline(
+    ui.nav_panel(
+        "Convergence Curve",
+        ui.output_plot('convergence_curve')
+    ),
+    title = "Ant Colony Optimization (ACO)"
+)
+
 app_ui = ui.page_navbar(
     ui.nav_spacer(), # Pushing the navbar items to the right
     ui.nav_panel(
@@ -114,7 +123,8 @@ app_ui = ui.page_navbar(
     ),
     ui.nav_panel(
         "Page 2",
-        "This is a placeholder and second 'page'."
+        # "This is a placeholder and second 'page'."
+        page2
     ),
     # Main dashboard title
     title="Dashboard prototype",

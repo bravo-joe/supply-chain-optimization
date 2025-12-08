@@ -1,0 +1,10 @@
+services:
+  shiny-app:
+    build: .
+    container_name: supply-chain-dashboard
+    ports:
+      - "8009:8009"
+    volumes:
+      - ./:/app
+    environment:
+      PYTHONUNBUFFERED: "1"
